@@ -1,0 +1,103 @@
+{
+  "event_hub_config": {
+    "namespace": "evhns-healthcare-prod",
+    "resource_group": "rg-healthcare-platform",
+    "location": "eastus",
+    "sku": "Standard",
+    "capacity": 2,
+    "event_hubs": [
+      {
+        "name": "evh-patient-vitals",
+        "description": "Real-time patient vitals: heart rate, blood pressure, SpO2, temperature",
+        "partition_count": 8,
+        "message_retention_days": 7,
+        "consumer_groups": [
+          "cg-databricks-streaming",
+          "cg-azure-stream-analytics",
+          "cg-monitoring"
+        ]
+      },
+      {
+        "name": "evh-icu-alerts",
+        "description": "ICU critical alerts and threshold breaches",
+        "partition_count": 4,
+        "message_retention_days": 3,
+        "consumer_groups": [
+          "cg-databricks-streaming",
+          "cg-alert-processor"
+        ]
+      },
+      {
+        "name": "evh-wearable-data",
+        "description": "Patient wearable device telemetry",
+        "partition_count": 4,
+        "message_retention_days": 7,
+        "consumer_groups": [
+          "cg-databricks-streaming"
+        ]
+      }
+    ]
+  },
+  "stream_analytics_job": {
+    "name": "asa-healthcare-vitals",
+    "description": "Real-time processing of patient vitals with threshold alerting",
+    "sku": "Standard",
+    "streaming_units": 3,
+    "inputs": [
+      {
+        "name": "PatientVitals",
+        "type": "Stream",
+        "datasource": {
+          "type": "Microsoft.ServiceBus/EventHub",
+          "event_hub_name": "evh-patient-vitals",
+          "consumer_group_name": "cg-azure-stream-analytics"
+        },
+        "serialization": {
+          "type": "Json",
+          "encoding": "UTF8"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "name": "ADLSBronzeOutput",
+        "datasource": {
+          "type": "Microsoft.DataLake/Accounts",
+          "account_name": "adlshealthcaredev",
+          "path_pattern": "bronze/iot/vitals/{date}/{time}",
+          "date_format": "yyyy/MM/dd",
+          "time_format": "HH"
+        },
+        "serialization": {
+          "type": "Parquet"
+        }
+      },
+      {
+        "name": "AlertsOutput",
+        "datasource": {
+          "type": "Microsoft.ServiceBus/EventHub",
+          "event_hub_name": "evh-icu-alerts"
+        }
+      }
+    ],
+    "transformation": {
+      "name": "VitalsProcessing",
+      "streaming_units": 3,
+      "query": "-- Tumbling window: aggregate vitals every 5 minutes\nSELECT\n    patient_id,\n    device_id,\n    ward_id,\n    AVG(heart_rate) AS avg_heart_rate,\n    MAX(heart_rate) AS max_heart_rate,\n    MIN(heart_rate) AS min_heart_rate,\n    AVG(blood_pressure_systolic) AS avg_bp_systolic,\n    AVG(blood_pressure_diastolic) AS avg_bp_diastolic,\n    AVG(spo2) AS avg_spo2,\n    AVG(temperature) AS avg_temperature,\n    COUNT(*) AS reading_count,\n    System.Timestamp() AS window_end_time\nINTO ADLSBronzeOutput\nFROM PatientVitals TIMESTAMP BY event_time\nGROUP BY\n    patient_id,\n    device_id,\n    ward_id,\n    TumblingWindow(minute, 5);\n\n-- Alert query: detect critical thresholds immediately\nSELECT\n    patient_id,\n    device_id,\n    ward_id,\n    heart_rate,\n    spo2,\n    blood_pressure_systolic,\n    temperature,\n    event_time,\n    CASE\n        WHEN heart_rate > 150 OR heart_rate < 40 THEN 'CRITICAL_HR'\n        WHEN spo2 < 90 THEN 'CRITICAL_SPO2'\n        WHEN blood_pressure_systolic > 180 THEN 'CRITICAL_BP'\n        WHEN temperature > 39.5 THEN 'HIGH_FEVER'\n        ELSE 'WARNING'\n    END AS alert_type\nINTO AlertsOutput\nFROM PatientVitals TIMESTAMP BY event_time\nWHERE\n    heart_rate > 150 OR heart_rate < 40\n    OR spo2 < 90\n    OR blood_pressure_systolic > 180\n    OR temperature > 39.5;"
+    }
+  },
+  "sample_event_payload": {
+    "patient_id": "P-001234",
+    "device_id": "DEV-ICU-042",
+    "ward_id": "ICU-A",
+    "hospital_id": "HOSP-001",
+    "event_time": "2024-01-15T10:30:00Z",
+    "heart_rate": 78,
+    "blood_pressure_systolic": 120,
+    "blood_pressure_diastolic": 80,
+    "spo2": 98.5,
+    "temperature": 36.8,
+    "respiratory_rate": 16,
+    "glucose_level": 95
+  }
+}

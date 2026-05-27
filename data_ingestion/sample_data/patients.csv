@@ -1,0 +1,16 @@
+patient_id,first_name,last_name,date_of_birth,gender,diagnosis_code,diagnosis_description,admission_date,discharge_date,attending_physician,hospital_id,insurance_provider,insurance_id,ward,readmission_flag,last_modified_date
+P-001001,Priya,Sharma,1975-03-12,F,E11.9,Type 2 diabetes without complications,2024-01-05,2024-01-10,Dr. Anand Kumar,HOSP-001,Star Health,SH-4421001,Endocrinology,0,2024-01-10
+P-001002,Ravi,Krishnan,1960-07-24,M,I25.10,Atherosclerotic heart disease,2024-01-06,2024-01-14,Dr. Meena Patel,HOSP-001,HDFC ERGO,HE-5530221,Cardiology,1,2024-01-14
+P-001003,Lakshmi,Venkatesh,1988-11-01,F,J18.9,Pneumonia unspecified,2024-01-07,2024-01-11,Dr. Rajesh Nair,HOSP-002,New India,NI-7712300,Pulmonology,0,2024-01-11
+P-001004,Suresh,Babu,1952-05-18,M,N18.3,Chronic kidney disease stage 3,2024-01-08,2024-01-15,Dr. Sunita Rao,HOSP-001,Apollo Munich,AM-2234501,Nephrology,1,2024-01-15
+P-001005,Deepa,Iyer,1993-09-30,F,K35.80,Acute appendicitis without abscess,2024-01-09,2024-01-12,Dr. Vijay Singh,HOSP-003,Max Bupa,MB-9910023,Surgery,0,2024-01-12
+P-001006,Arun,Mehta,1980-02-14,M,G43.909,Migraine unspecified,2024-01-10,2024-01-11,Dr. Priya Desai,HOSP-002,Bajaj Allianz,BA-3345120,Neurology,0,2024-01-11
+P-001007,Kavitha,Nair,1967-12-05,F,M16.11,Primary osteoarthritis right hip,2024-01-11,2024-01-18,Dr. Ramesh Gupta,HOSP-001,National Insurance,NI-8821003,Orthopedics,0,2024-01-18
+P-001008,Mohan,Reddy,1945-08-20,M,C34.10,Malignant neoplasm of upper lobe bronchus,2024-01-12,2024-01-25,Dr. Leela Krishnamurthy,HOSP-003,Star Health,SH-6634002,Oncology,1,2024-01-25
+P-001009,Anitha,Pillai,1990-04-17,F,O34.21,Maternal care for cervical incompetence,2024-01-13,2024-01-16,Dr. Saranya Menon,HOSP-002,LIC Health,LH-1123450,Obstetrics,0,2024-01-16
+P-001010,Ganesh,Subramanian,1958-06-03,M,I50.9,Heart failure unspecified,2024-01-14,2024-01-22,Dr. Anand Kumar,HOSP-001,HDFC ERGO,HE-9987341,Cardiology,1,2024-01-22
+P-001011,Suja,Thomas,1985-10-22,F,F32.9,Major depressive disorder single episode,2024-01-15,2024-01-21,Dr. Nisha Mathew,HOSP-002,Star Health,SH-3312090,Psychiatry,0,2024-01-21
+P-001012,Bala,Sundaram,1972-01-09,M,E78.5,Hyperlipidemia unspecified,2024-01-16,2024-01-17,Dr. Meena Patel,HOSP-001,Max Bupa,MB-7723400,Cardiology,0,2024-01-17
+P-001013,Radha,Gopalan,1948-03-27,F,G30.9,Alzheimer disease unspecified,2024-01-17,2024-01-30,Dr. Suresh Pillai,HOSP-003,New India,NI-4456780,Neurology,1,2024-01-30
+P-001014,Karthik,Murugan,1995-07-11,M,S72.001,Fracture of unspecified part of neck of right femur,2024-01-18,2024-01-28,Dr. Ramesh Gupta,HOSP-001,Bajaj Allianz,BA-8834501,Orthopedics,0,2024-01-28
+P-001015,Meena,Balachandran,1963-05-14,F,K74.60,Unspecified cirrhosis of liver,2024-01-19,2024-01-27,Dr. Vijay Singh,HOSP-002,Apollo Munich,AM-5567820,Gastroenterology,1,2024-01-27

@@ -1,0 +1,219 @@
+{
+  "name": "pipeline_ehr_ingestion",
+  "properties": {
+    "description": "Ingests EHR data (HL7/FHIR) from on-premise SQL Server and REST APIs into ADLS Gen2 Bronze layer",
+    "activities": [
+      {
+        "name": "LookupLastWatermark",
+        "type": "Lookup",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "AzureSqlSource",
+            "sqlReaderQuery": "SELECT MAX(last_modified_date) AS LastWatermark FROM dbo.watermark_table WHERE table_name = 'EHR_Patients'"
+          },
+          "dataset": {
+            "referenceName": "DS_AzureSQL_Watermark",
+            "type": "DatasetReference"
+          }
+        }
+      },
+      {
+        "name": "CopyEHRPatients",
+        "type": "Copy",
+        "dependsOn": [
+          {
+            "activity": "LookupLastWatermark",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlServerSource",
+            "sqlReaderQuery": {
+              "value": "SELECT patient_id, first_name, last_name, date_of_birth, gender, diagnosis_code, admission_date, discharge_date, attending_physician, hospital_id, insurance_provider, last_modified_date FROM dbo.Patients WHERE last_modified_date > '@{activity('LookupLastWatermark').output.firstRow.LastWatermark}'",
+              "type": "Expression"
+            },
+            "queryTimeout": "02:00:00"
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": true,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_SqlServer_EHR",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_ADLS_Bronze_Patients",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')"
+            }
+          }
+        ]
+      },
+      {
+        "name": "CopyFHIRData",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:01:40",
+            "requestInterval": "00.00:00:00.010",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "Authorization": {
+                "value": "@concat('Bearer ', activity('GetFHIRToken').output.value)",
+                "type": "Expression"
+              }
+            },
+            "paginationRules": {
+              "QueryParameters.next": "$.link[?(@.relation=='next')].url"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "JsonWriteSettings"
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_FHIR_REST_API",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_ADLS_Bronze_FHIR",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')"
+            }
+          }
+        ]
+      },
+      {
+        "name": "UpdateWatermark",
+        "type": "SqlServerStoredProcedure",
+        "dependsOn": [
+          {
+            "activity": "CopyEHRPatients",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "typeProperties": {
+          "storedProcedureName": "dbo.usp_UpdateWatermark",
+          "storedProcedureParameters": {
+            "LastModifiedtime": {
+              "value": "@pipeline().TriggerTime",
+              "type": "DateTime"
+            },
+            "TableName": {
+              "value": "EHR_Patients",
+              "type": "String"
+            }
+          }
+        },
+        "linkedServiceName": {
+          "referenceName": "LS_AzureSQL_Control",
+          "type": "LinkedServiceReference"
+        }
+      },
+      {
+        "name": "LogPipelineRun",
+        "type": "SqlServerStoredProcedure",
+        "dependsOn": [
+          {
+            "activity": "CopyEHRPatients",
+            "dependencyConditions": ["Succeeded", "Failed"]
+          }
+        ],
+        "typeProperties": {
+          "storedProcedureName": "dbo.usp_LogPipelineRun",
+          "storedProcedureParameters": {
+            "PipelineName": {
+              "value": "@pipeline().Pipeline",
+              "type": "String"
+            },
+            "RunId": {
+              "value": "@pipeline().RunId",
+              "type": "String"
+            },
+            "Status": {
+              "value": "@activity('CopyEHRPatients').Status",
+              "type": "String"
+            },
+            "RowsCopied": {
+              "value": "@activity('CopyEHRPatients').output.rowsCopied",
+              "type": "Int32"
+            },
+            "RunTime": {
+              "value": "@utcNow()",
+              "type": "DateTime"
+            }
+          }
+        },
+        "linkedServiceName": {
+          "referenceName": "LS_AzureSQL_Control",
+          "type": "LinkedServiceReference"
+        }
+      }
+    ],
+    "parameters": {
+      "batch_date": {
+        "type": "string",
+        "defaultValue": "@formatDateTime(utcNow(), 'yyyy-MM-dd')"
+      }
+    },
+    "variables": {
+      "rows_processed": {
+        "type": "Integer",
+        "defaultValue": 0
+      }
+    },
+    "annotations": ["Healthcare", "EHR", "Bronze", "Batch"],
+    "folder": {
+      "name": "01_Ingestion"
+    }
+  }
+}

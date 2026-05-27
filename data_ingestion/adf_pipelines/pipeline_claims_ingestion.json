@@ -1,0 +1,213 @@
+{
+  "name": "pipeline_claims_ingestion",
+  "properties": {
+    "description": "Ingests insurance claims and billing data from Azure Blob Storage and external SFTP into ADLS Gen2 Bronze layer",
+    "activities": [
+      {
+        "name": "GetMetadata_ClaimsFiles",
+        "type": "GetMetadata",
+        "dependsOn": [],
+        "typeProperties": {
+          "dataset": {
+            "referenceName": "DS_Blob_Claims_Landing",
+            "type": "DatasetReference"
+          },
+          "fieldList": ["childItems", "lastModified"],
+          "storeSettings": {
+            "type": "AzureBlobStorageReadSettings",
+            "recursive": false,
+            "enablePartitionDiscovery": false
+          }
+        }
+      },
+      {
+        "name": "ForEach_ClaimsFile",
+        "type": "ForEach",
+        "dependsOn": [
+          {
+            "activity": "GetMetadata_ClaimsFiles",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "typeProperties": {
+          "items": {
+            "value": "@activity('GetMetadata_ClaimsFiles').output.childItems",
+            "type": "Expression"
+          },
+          "isSequential": false,
+          "batchCount": 5,
+          "activities": [
+            {
+              "name": "CopyClaims_ToBronze",
+              "type": "Copy",
+              "dependsOn": [],
+              "typeProperties": {
+                "source": {
+                  "type": "DelimitedTextSource",
+                  "storeSettings": {
+                    "type": "AzureBlobStorageReadSettings",
+                    "recursive": false,
+                    "enablePartitionDiscovery": false
+                  },
+                  "formatSettings": {
+                    "type": "DelimitedTextReadSettings"
+                  }
+                },
+                "sink": {
+                  "type": "ParquetSink",
+                  "storeSettings": {
+                    "type": "AzureBlobFSWriteSettings"
+                  },
+                  "formatSettings": {
+                    "type": "ParquetWriteSettings"
+                  }
+                },
+                "enableStaging": false,
+                "validateDataConsistency": true,
+                "logSettings": {
+                  "enableCopyActivityLog": true,
+                  "copyActivityLogSettings": {
+                    "logLevel": "Warning",
+                    "enableReliableLogging": false
+                  },
+                  "logLocationSettings": {
+                    "linkedServiceName": {
+                      "referenceName": "LS_ADLS_Gen2",
+                      "type": "LinkedServiceReference"
+                    },
+                    "path": "logs/claims-ingestion"
+                  }
+                }
+              },
+              "inputs": [
+                {
+                  "referenceName": "DS_Blob_Claims_File",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "file_name": "@item().name"
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "referenceName": "DS_ADLS_Bronze_Claims",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "folder_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')",
+                    "file_name": "@replace(item().name, '.csv', '.parquet')"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ArchiveClaims_File",
+              "type": "Copy",
+              "dependsOn": [
+                {
+                  "activity": "CopyClaims_ToBronze",
+                  "dependencyConditions": ["Succeeded"]
+                }
+              ],
+              "typeProperties": {
+                "source": {
+                  "type": "DelimitedTextSource",
+                  "storeSettings": {
+                    "type": "AzureBlobStorageReadSettings"
+                  }
+                },
+                "sink": {
+                  "type": "DelimitedTextSink",
+                  "storeSettings": {
+                    "type": "AzureBlobStorageWriteSettings"
+                  }
+                }
+              },
+              "inputs": [
+                {
+                  "referenceName": "DS_Blob_Claims_File",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "file_name": "@item().name"
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "referenceName": "DS_Blob_Claims_Archive",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "archive_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')",
+                    "file_name": "@item().name"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Delete_ProcessedFile",
+              "type": "Delete",
+              "dependsOn": [
+                {
+                  "activity": "ArchiveClaims_File",
+                  "dependencyConditions": ["Succeeded"]
+                }
+              ],
+              "typeProperties": {
+                "dataset": {
+                  "referenceName": "DS_Blob_Claims_File",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "file_name": "@item().name"
+                  }
+                },
+                "enableLogging": true,
+                "storeSettings": {
+                  "type": "AzureBlobStorageReadSettings",
+                  "recursive": false
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "TriggerDatabricks_ClaimsTransform",
+        "type": "DatabricksNotebook",
+        "dependsOn": [
+          {
+            "activity": "ForEach_ClaimsFile",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "typeProperties": {
+          "notebookPath": "/Healthcare/01_bronze_to_silver",
+          "baseParameters": {
+            "source_layer": "bronze",
+            "target_layer": "silver",
+            "data_source": "claims",
+            "run_date": "@formatDateTime(utcNow(), 'yyyy-MM-dd')"
+          },
+          "libraries": [
+            {
+              "pypi": {
+                "package": "great-expectations==0.18.0"
+              }
+            }
+          ]
+        },
+        "linkedServiceName": {
+          "referenceName": "LS_AzureDatabricks",
+          "type": "LinkedServiceReference"
+        }
+      }
+    ],
+    "parameters": {
+      "run_date": {
+        "type": "string"
+      }
+    },
+    "annotations": ["Healthcare", "Claims", "Bronze", "Batch"],
+    "folder": {
+      "name": "01_Ingestion"
+    }
+  }
+}

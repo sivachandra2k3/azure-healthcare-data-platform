@@ -1,0 +1,164 @@
+{
+  "name": "pipeline_public_api_ingestion",
+  "properties": {
+    "description": "Ingests public health data from CDC and WHO REST APIs into ADLS Gen2 Bronze layer",
+    "activities": [
+      {
+        "name": "CopyCDC_DiseaseData",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.04:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 60
+        },
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:05:00",
+            "requestInterval": "00.00:00:00.010",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "X-App-Token": {
+                "value": "@activity('GetCDCToken').output.value",
+                "type": "Expression"
+              }
+            },
+            "paginationRules": {
+              "QueryParameters.$offset": "RANGE:0:50000:50000"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_REST_CDC_API",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_ADLS_Bronze_PublicHealth",
+            "type": "DatasetReference",
+            "parameters": {
+              "source": "cdc",
+              "folder_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')"
+            }
+          }
+        ]
+      },
+      {
+        "name": "CopyWHO_GlobalData",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.04:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 60
+        },
+        "typeProperties": {
+          "source": {
+            "type": "RestSource",
+            "httpRequestTimeout": "00:05:00",
+            "requestMethod": "GET",
+            "additionalHeaders": {
+              "Accept": "application/json"
+            }
+          },
+          "sink": {
+            "type": "JsonSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_REST_WHO_API",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_ADLS_Bronze_PublicHealth",
+            "type": "DatasetReference",
+            "parameters": {
+              "source": "who",
+              "folder_date": "@formatDateTime(utcNow(), 'yyyy/MM/dd')"
+            }
+          }
+        ]
+      },
+      {
+        "name": "ValidateIngestion",
+        "type": "IfCondition",
+        "dependsOn": [
+          {
+            "activity": "CopyCDC_DiseaseData",
+            "dependencyConditions": ["Succeeded"]
+          },
+          {
+            "activity": "CopyWHO_GlobalData",
+            "dependencyConditions": ["Succeeded"]
+          }
+        ],
+        "typeProperties": {
+          "expression": {
+            "value": "@and(greater(activity('CopyCDC_DiseaseData').output.rowsCopied, 0), greater(activity('CopyWHO_GlobalData').output.rowsCopied, 0))",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "name": "TriggerDatabricks_PublicHealthTransform",
+              "type": "DatabricksNotebook",
+              "typeProperties": {
+                "notebookPath": "/Healthcare/01_bronze_to_silver",
+                "baseParameters": {
+                  "data_source": "public_health",
+                  "run_date": "@formatDateTime(utcNow(), 'yyyy-MM-dd')"
+                }
+              },
+              "linkedServiceName": {
+                "referenceName": "LS_AzureDatabricks",
+                "type": "LinkedServiceReference"
+              }
+            }
+          ],
+          "ifFalseActivities": [
+            {
+              "name": "SendAlertEmail",
+              "type": "WebActivity",
+              "typeProperties": {
+                "url": "https://prod-xx.eastus.logic.azure.com/workflows/xxx/triggers/manual/paths/invoke",
+                "method": "POST",
+                "body": {
+                  "value": "@json(concat('{\"pipeline\":\"', pipeline().Pipeline, '\",\"message\":\"No data ingested from public APIs\",\"runId\":\"', pipeline().RunId, '\"}'))",
+                  "type": "Expression"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "parameters": {
+      "cdc_dataset": {
+        "type": "string",
+        "defaultValue": "9bhg-hcku"
+      },
+      "who_indicator": {
+        "type": "string",
+        "defaultValue": "WHOSIS_000001"
+      }
+    },
+    "annotations": ["Healthcare", "PublicHealth", "CDC", "WHO", "Bronze"],
+    "folder": {
+      "name": "01_Ingestion"
+    }
+  }
+}
