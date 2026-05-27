@@ -1,4 +1,4 @@
-# 🏥 Azure Healthcare Data Platform
+#  Azure Healthcare Data Platform
 
 An end-to-end Azure Data Engineering project that ingests, transforms, and serves healthcare data using a **Medallion Architecture (Bronze → Silver → Gold)** on Azure.
 
@@ -6,24 +6,24 @@ An end-to-end Azure Data Engineering project that ingests, transforms, and serve
 
 ---
 
-## 📌 Project Overview
+##  Project Overview
 
 This project demonstrates a production-grade healthcare data pipeline built on Microsoft Azure. It ingests data from multiple sources (EHR systems, IoT devices, claims databases, public health APIs), processes it through a lakehouse medallion architecture, and serves insights via Power BI dashboards and machine learning models.
 
 ### Key Features
-- ✅ Batch & real-time data ingestion
-- ✅ Medallion architecture (Bronze / Silver / Gold)
-- ✅ Delta Lake on ADLS Gen2
-- ✅ PySpark transformations on Azure Databricks
-- ✅ Azure Synapse Analytics SQL Pools
-- ✅ Patient readmission ML model (Azure ML)
-- ✅ Power BI dashboards for clinical insights
-- ✅ HIPAA-compliant security (AAD, Key Vault, RBAC)
-- ✅ Infrastructure as Code (Bicep)
+-  Batch & real-time data ingestion
+-  Medallion architecture (Bronze / Silver / Gold)
+-  Delta Lake on ADLS Gen2
+-  PySpark transformations on Azure Databricks
+-  Azure Synapse Analytics SQL Pools
+-  Patient readmission ML model (Azure ML)
+-  Power BI dashboards for clinical insights
+-  HIPAA-compliant security (AAD, Key Vault, RBAC)
+-  Infrastructure as Code (Bicep)
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 Data Sources → ADF / Event Hubs → ADLS Gen2 (Bronze → Silver → Gold)
@@ -37,7 +37,7 @@ Data Sources → ADF / Event Hubs → ADLS Gen2 (Bronze → Silver → Gold)
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 azure-healthcare-data-platform/
@@ -84,7 +84,7 @@ azure-healthcare-data-platform/
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Prerequisites
 - Azure Subscription
@@ -121,7 +121,7 @@ az deployment group create \
 
 ---
 
-## 📊 Datasets Used
+##  Datasets Used
 
 | Dataset | Source | Format |
 |---|---|---|
@@ -132,7 +132,7 @@ az deployment group create \
 
 ---
 
-## 🔐 Security & Compliance
+##  Security & Compliance
 
 - Azure Active Directory (AAD) for authentication
 - Azure Key Vault for secrets management
@@ -142,12 +142,12 @@ az deployment group create \
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Pull requests are welcome. For major changes, please open an issue first.
 
 ---
 
-## 📄 License
+##  License
 
 MIT License
